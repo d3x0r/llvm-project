@@ -97,6 +97,16 @@ struct FormatStyle {
     ///  ``Cpp11BracedListStyle`` is ``true``) and parentheses.
     /// \endnote
     BAS_BlockIndent,
+    /// Align parameters at the top level open bracket instead of in
+    /// the bracket, e.g.:
+    /// \code
+    ///    true:                                  false:
+    ///    someLongFunction( argument1,   vs.    someLongFunction( argument1,
+    ///                    argument2 );                             argument2 );
+    ///   if( expression1                        if( expression1
+    ///     && expression2 );                        && expression2 );
+    /// \endcode
+    BAS_AlignTop
   };
 
   /// If ``true``, horizontally aligns arguments after an open bracket.
@@ -1760,6 +1770,21 @@ struct FormatStyle {
   /// \version 3.6
   BinaryOperatorStyle BreakBeforeBinaryOperators;
 
+  /// If ``true``, clang-format break before commas instead of after.
+  /// parameters.
+  /// \code
+  ///    true:
+  ///    void functionDefinition(int A
+  ///                            ,int B) {}
+  ///
+  ///    false:
+  ///    void functionDefinition(int A, 
+  ///                            int B) {}
+  ///
+  /// \endcode
+  /// \version 21
+  bool BreakBeforeComma;
+
   /// Different ways to attach braces to their surrounding context.
   enum BraceBreakingStyle : int8_t {
     /// Always attach braces to surrounding context.
@@ -2670,6 +2695,28 @@ struct FormatStyle {
   /// \endnote
   /// \version 3.7
   bool ExperimentalAutoDetectBinPacking;
+
+  /// If ``true``, clang-format will attempt to reflow binary operators.
+  /// When false, binary operators are marked as cannot break; even though
+  /// there are options to break before binary operators. The old behavior
+  /// caused valid wrapped lines to be disqualified by a long chain of 
+  /// non-breakable tokens; even though some of the tokens could be broken;
+  /// especially binary operands specified as breakable.
+  /// 
+  /// \code
+  ///   false:
+  ///     result = operand1 
+  ///               * (operand2 - operand3 * operand4)
+  ///               - operand5 
+  ///               + operand6;
+  ///
+  ///   true:
+  ///     result = operand1 * (operand2 - operand3 * operand4) 
+  ///               - operand5
+  ///               + operand6
+  /// \endcode
+  /// \version 21
+  bool FixBinaryOperatorBreak;
 
   /// If ``true``, clang-format adds missing namespace end comments for
   /// namespaces and fixes invalid existing ones. This doesn't affect short
@@ -5181,6 +5228,7 @@ struct FormatStyle {
            BreakAfterReturnType == R.BreakAfterReturnType &&
            BreakArrays == R.BreakArrays &&
            BreakBeforeBinaryOperators == R.BreakBeforeBinaryOperators &&
+           BreakBeforeComma == R.BreakBeforeComma &&
            BreakBeforeBraces == R.BreakBeforeBraces &&
            BreakBeforeConceptDeclarations == R.BreakBeforeConceptDeclarations &&
            BreakBeforeInlineASMColon == R.BreakBeforeInlineASMColon &&

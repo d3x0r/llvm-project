@@ -1231,7 +1231,7 @@ private:
         }
       }
       if (CurrentToken->is(tok::comma)) {
-        if (Style.isJavaScript())
+        if (Style.isJavaScript() && !Style.BreakBeforeComma )
           OpeningBrace.overwriteFixedType(TT_DictLiteral);
         ++CommaCount;
       }
@@ -1740,7 +1740,8 @@ private:
                    (Contexts.size() == 1 || startsWithInitStatement(Line))) {
           Contexts.back().FirstStartOfName->PartOfMultiVariableDeclStmt = true;
           Line.IsMultiVariableDeclStmt = true;
-        }
+        } else if( Style.BreakBeforeComma )
+          Tok->setType(TT_BinaryOperator);
         break;
       }
       if (Contexts.back().ContextType == Context::ForEachMacro)
@@ -4039,10 +4040,11 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) const {
           if (Parameter->isOneOf(tok::comment, tok::r_brace))
             break;
           if (Parameter->Previous && Parameter->Previous->is(tok::comma)) {
-            if (Parameter->Previous->isNot(TT_CtorInitializerComma) &&
-                Parameter->HasUnescapedNewline) {
-              Parameter->MustBreakBefore = true;
-            }
+            if (!Style.BreakBeforeComma)
+                if (Parameter->Previous->isNot(TT_CtorInitializerComma) &&
+                    Parameter->HasUnescapedNewline) {
+                  Parameter->MustBreakBefore = true;
+                }
             break;
           }
         }
@@ -4112,11 +4114,23 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) const {
     if (Current->MatchingParen &&
         Current->MatchingParen->opensBlockOrBlockTypeList(Style) &&
         IndentLevel > 0) {
-      --IndentLevel;
+      IndentLevel = Current->MatchingParen->IndentLevel;
     }
     Current->IndentLevel = IndentLevel;
-    if (Current->opensBlockOrBlockTypeList(Style))
-      ++IndentLevel;
+    if (Current->opensBlockOrBlockTypeList(Style)) {
+      if ((!Style.isJavaScript() ||
+           !Current->isOneOf(tok::l_brace, tok::l_square) ||
+           !Current->Previous ||
+           !Current->Previous->isOneOf(tok::colon, tok::comma, tok::equal,
+                                       tok::l_paren)) &&
+          !Current->MustBreakBefore) {
+        // if (!Current->Previous || !Current->Previous->isOneOf(
+        //                               tok::l_paren, tok::comma, tok::equal))
+        //                               {
+        ++IndentLevel;
+      }
+      //}
+    }
   }
 
   LLVM_DEBUG({ printDebugInfo(Line); });
@@ -4214,8 +4228,11 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
       return 500;
   }
 
-  if (Right.is(tok::identifier) && Right.Next && Right.Next->is(TT_DictLiteral))
+  if (Right.is(tok::identifier) && Right.Next && Right.Next->is(TT_DictLiteral)){
+    if (Left.is(tok::comma) && Style.BreakBeforeComma)
+      return 100;
     return 1;
+  }
   if (Right.is(tok::l_square)) {
     if (Left.is(tok::r_square))
       return 200;
@@ -4252,7 +4269,10 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
   if (Left.isOneOf(tok::kw_class, tok::kw_struct, tok::kw_union))
     return 5000;
   if (Left.is(tok::comment))
-    return 1000;
+    if( Left.is( TT_LineComment ) )
+      return 0; // MUST split, don't penalize it.
+    else
+      return 1000;
 
   if (Left.isOneOf(TT_RangeBasedForLoopColon, TT_InheritanceColon,
                    TT_CtorInitializerColon)) {
@@ -4363,7 +4383,7 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
     return 25;
   }
   if (Left.is(tok::comma))
-    return 1;
+    return 1 + (Style.BreakBeforeComma?100:0); // add option to break before comma...
   if (Right.is(tok::lessless) && Left.isLabelString() &&
       (Right.NextOperator || Right.OperatorIndex != 1)) {
     return 25;
@@ -5571,7 +5591,9 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
                             tok::kw_const) &&
         // kw_var/kw_let are pseudo-tokens that are tok::identifier, so match
         // above.
-        !Line.First->isOneOf(Keywords.kw_var, Keywords.kw_let)) {
+        !Line.First->isOneOf(Keywords.kw_var, Keywords.kw_let) &&
+        // allow first token to align after first bracket...
+        (Style.AlignAfterOpenBracket != FormatStyle::BAS_AlignTop)) {
       // Object literals on the top level of a file are treated as "enum-style".
       // Each key/value pair is put on a separate line, instead of bin-packing.
       return true;
@@ -5710,8 +5732,9 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
                  Right.MatchingParen->is(tok::l_paren)))) {
       BeforeClosingBrace = &Left;
     }
-    if (BeforeClosingBrace && (BeforeClosingBrace->is(tok::comma) ||
-                               BeforeClosingBrace->isTrailingComment())) {
+    if (BeforeClosingBrace &&
+        ((!Style.BreakBeforeComma && BeforeClosingBrace->is(tok::comma)) ||
+         BeforeClosingBrace->isTrailingComment())) {
       return true;
     }
   }
@@ -6224,10 +6247,11 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
       (Left.is(tok::less) && Right.is(tok::less))) {
     return false;
   }
-  if (Right.is(TT_BinaryOperator) &&
-      Style.BreakBeforeBinaryOperators != FormatStyle::BOS_None &&
-      (Style.BreakBeforeBinaryOperators == FormatStyle::BOS_All ||
-       Right.getPrecedence() != prec::Assignment)) {
+  if ((Right.is(TT_BinaryOperator) &&
+       Style.BreakBeforeBinaryOperators != FormatStyle::BOS_None &&
+       (Style.BreakBeforeBinaryOperators == FormatStyle::BOS_All ||
+        Right.getPrecedence() != prec::Assignment)) ||
+       (Right.is( tok::comma ) && Style.BreakBeforeComma)) {
     return true;
   }
   if (Left.isOneOf(TT_TemplateCloser, TT_UnaryOperator) ||

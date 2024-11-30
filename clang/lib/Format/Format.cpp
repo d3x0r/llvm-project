@@ -208,6 +208,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::BracketAlignmentStyle> {
     IO.enumCase(Value, "DontAlign", FormatStyle::BAS_DontAlign);
     IO.enumCase(Value, "AlwaysBreak", FormatStyle::BAS_AlwaysBreak);
     IO.enumCase(Value, "BlockIndent", FormatStyle::BAS_BlockIndent);
+    IO.enumCase(Value, "AlignTop", FormatStyle::BAS_AlignTop);
 
     // For backward compatibility.
     IO.enumCase(Value, "true", FormatStyle::BAS_Align);
@@ -995,6 +996,8 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("BreakArrays", Style.BreakArrays);
     IO.mapOptional("BreakBeforeBinaryOperators",
                    Style.BreakBeforeBinaryOperators);
+    IO.mapOptional("BreakBeforeComma",
+                   Style.BreakBeforeComma);
     IO.mapOptional("BreakBeforeConceptDeclarations",
                    Style.BreakBeforeConceptDeclarations);
     IO.mapOptional("BreakBeforeBraces", Style.BreakBeforeBraces);
@@ -1026,6 +1029,7 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.EmptyLineBeforeAccessModifier);
     IO.mapOptional("ExperimentalAutoDetectBinPacking",
                    Style.ExperimentalAutoDetectBinPacking);
+    IO.mapOptional("FixBinaryOperatorBreak", Style.FixBinaryOperatorBreak);
     IO.mapOptional("FixNamespaceComments", Style.FixNamespaceComments);
     IO.mapOptional("ForEachMacros", Style.ForEachMacros);
     IO.mapOptional("IfMacros", Style.IfMacros);
@@ -1511,6 +1515,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.BreakAfterReturnType = FormatStyle::RTBS_None;
   LLVMStyle.BreakArrays = true;
   LLVMStyle.BreakBeforeBinaryOperators = FormatStyle::BOS_None;
+  LLVMStyle.BreakBeforeComma = false;
   LLVMStyle.BreakBeforeBraces = FormatStyle::BS_Attach;
   LLVMStyle.BreakBeforeConceptDeclarations = FormatStyle::BBCDS_Always;
   LLVMStyle.BreakBeforeInlineASMColon = FormatStyle::BBIAS_OnlyMultiline;
@@ -1532,6 +1537,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.EmptyLineAfterAccessModifier = FormatStyle::ELAAMS_Never;
   LLVMStyle.EmptyLineBeforeAccessModifier = FormatStyle::ELBAMS_LogicalBlock;
   LLVMStyle.ExperimentalAutoDetectBinPacking = false;
+  LLVMStyle.FixBinaryOperatorBreak = false;
   LLVMStyle.FixNamespaceComments = true;
   LLVMStyle.ForEachMacros.push_back("foreach");
   LLVMStyle.ForEachMacros.push_back("Q_FOREACH");
